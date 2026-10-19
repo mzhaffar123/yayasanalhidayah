@@ -47,4 +47,13 @@ The admin page uses Supabase Auth to verify email and password credentials on th
 
 5. Restart the Vite server after changing environment variables.
 
-Never put a Supabase `service_role` key in this frontend project. Supabase Auth secures the admin login, but CMS content is still stored in the current browser's local storage; moving shared content to a server database with access policies is a separate step.
+Never put a Supabase `service_role` key in this frontend project.
+
+### Store CMS content and images in Supabase
+
+1. In the Supabase dashboard for the same project, open **SQL Editor**.
+2. Open `supabase/setup.sql` from this repository, copy its contents into a new SQL query, and run it. This creates the CMS table, public read/authenticated write policies, and the public `cms-media` image bucket.
+3. In the website, sign in as the admin and open the Admin CMS page. It migrates the existing local CMS records into Supabase once, without overwriting records that already exist in the cloud. Any local base64 images are moved to Storage during this migration.
+4. New or updated donations, news, classes, and activities are then saved to Supabase. Uploaded images are stored in `cms-media` and visible to site visitors.
+
+Only create trusted admin accounts in Supabase. The SQL policies allow authenticated accounts to write CMS data, while anonymous visitors can only read it. Keep public sign-ups disabled.

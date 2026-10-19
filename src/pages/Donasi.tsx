@@ -14,6 +14,8 @@ interface DonasiProps {
 export default function Donasi({ selectedDonationId, setSelectedDonationId, initialFilter }: DonasiProps) {
   const [filter, setFilter] = useState<'all' | 'pembangunan' | 'sosial' | 'keagamaan'>('all');
   const [donations, setDonations] = useState<DonationProgram[]>([]);
+  const [cmsError, setCmsError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Donation Form States
   const [selectedPreset, setSelectedPreset] = useState<number>(50000);
@@ -29,8 +31,19 @@ export default function Donasi({ selectedDonationId, setSelectedDonationId, init
   const [successData, setSuccessData] = useState<any>(null);
 
   useEffect(() => {
-    setDonations(getDonations());
-  }, [selectedDonationId, donationSuccess]);
+    let isMounted = true;
+    getDonations()
+      .then(items => {
+        if (isMounted) setDonations(items);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) setCmsError(error instanceof Error ? error.message : 'Program donasi gagal dimuat.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     if (initialFilter === 'pembangunan' || initialFilter === 'sosial' || initialFilter === 'keagamaan') {
@@ -617,6 +630,8 @@ export default function Donasi({ selectedDonationId, setSelectedDonationId, init
       {/* Grid Program Donasi */}
       <section className="donations-grid-section section-padding">
         <div className="container">
+          {cmsError && <p role="alert" style={{ color: 'var(--color-danger)' }}>{cmsError}</p>}
+          {isLoading && <p>Memuat program donasi...</p>}
           <div className="tab-container">
             <button className={`tab-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Semua Kategori</button>
             <button className={`tab-btn ${filter === 'pembangunan' ? 'active' : ''}`} onClick={() => setFilter('pembangunan')}>Wakaf Pembangunan</button>

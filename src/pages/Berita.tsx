@@ -1,13 +1,31 @@
 // src/pages/Berita.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Calendar, User } from 'lucide-react';
 import { getNews } from '../data/mockData';
+import type { NewsItem } from '../data/mockData';
 
 export default function Berita() {
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'berita' | 'artikel' | 'cerita' | 'pengumuman'>('all');
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [cmsError, setCmsError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const newsList = getNews();
+  useEffect(() => {
+    let isMounted = true;
+    getNews()
+      .then(items => {
+        if (isMounted) setNewsList(items);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) setCmsError(error instanceof Error ? error.message : 'Berita gagal dimuat.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
   const selectedNews = newsList.find(n => n.id === selectedNewsId);
 
   const filteredNews = filter === 'all' 
@@ -144,6 +162,8 @@ export default function Berita() {
       {/* Grid List */}
       <section className="news-grid-section section-padding">
         <div className="container">
+          {cmsError && <p role="alert" style={{ color: 'var(--color-danger)' }}>{cmsError}</p>}
+          {isLoading && <p>Memuat berita...</p>}
           <div className="tab-container">
             <button className={`tab-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Semua Tulisan</button>
             <button className={`tab-btn ${filter === 'berita' ? 'active' : ''}`} onClick={() => setFilter('berita')}>Berita Yayasan</button>

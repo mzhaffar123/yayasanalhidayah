@@ -1,11 +1,15 @@
 // src/pages/KelasOnline.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Calendar, DollarSign, GraduationCap, ArrowLeft, ArrowRight, ShieldCheck, Check, Users } from 'lucide-react';
 import { getClasses, contactInfo } from '../data/mockData';
+import type { OnlineClass } from '../data/mockData';
 
 export default function KelasOnline() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<boolean>(false);
+  const [classes, setClasses] = useState<OnlineClass[]>([]);
+  const [cmsError, setCmsError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   
   // Registration Form States
   const [studentName, setStudentName] = useState<string>('');
@@ -13,7 +17,21 @@ export default function KelasOnline() {
   const [studentAge, setStudentAge] = useState<string>('');
   const [studentReason, setStudentReason] = useState<string>('');
 
-  const classes = getClasses();
+  useEffect(() => {
+    let isMounted = true;
+    getClasses()
+      .then(items => {
+        if (isMounted) setClasses(items);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) setCmsError(error instanceof Error ? error.message : 'Kelas online gagal dimuat.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
   const handleSelectClass = (id: string) => {
@@ -117,6 +135,7 @@ export default function KelasOnline() {
               margin-right: auto;
               margin-left: auto;
             }
+
             .success-icon-badge {
               width: 80px;
               height: 80px;
@@ -415,6 +434,15 @@ export default function KelasOnline() {
             line-height: 1.4;
           }
         `}</style>
+      </div>
+    );
+  }
+
+  if (isLoading || cmsError) {
+    return (
+      <div className="container section-padding">
+        {isLoading && <p>Memuat kelas online...</p>}
+        {cmsError && <p role="alert" style={{ color: 'var(--color-danger)' }}>{cmsError}</p>}
       </div>
     );
   }

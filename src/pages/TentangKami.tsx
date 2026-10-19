@@ -1,11 +1,28 @@
 // src/pages/TentangKami.tsx
+import { useEffect, useState } from 'react';
 import { CalendarDays, Clock3, History, MapPin, Users } from 'lucide-react';
 import { getActivities, getPrograms } from '../data/mockData';
+import type { ActivityItem } from '../data/mockData';
 
 export default function TentangKami() {
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activitiesError, setActivitiesError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    getActivities()
+      .then(items => {
+        if (isMounted) setActivities(items);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) setActivitiesError(error instanceof Error ? error.message : 'Agenda kegiatan gagal dimuat.');
+      });
+    return () => { isMounted = false; };
+  }, []);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const upcomingActivities = getActivities()
+  const upcomingActivities = activities
     .filter(activity => new Date(`${activity.date}T00:00:00`) >= today)
     .sort((first, second) => first.date.localeCompare(second.date))
     .slice(0, 6);
@@ -154,7 +171,7 @@ export default function TentangKami() {
                   ))}
                 </div>
               ) : (
-                <p className="agenda-empty">Belum ada agenda mendatang. Informasi kegiatan terbaru akan ditampilkan di sini.</p>
+                <p className="agenda-empty">{activitiesError || 'Belum ada agenda mendatang. Informasi kegiatan terbaru akan ditampilkan di sini.'}</p>
               )}
             </div>
 

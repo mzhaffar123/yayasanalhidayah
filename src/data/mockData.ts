@@ -11,6 +11,7 @@ import programKelasGuru from '../assets/Program Kelas Guru.jpeg';
 import programKajianRutin from '../assets/Program Kajian Rutin Mingguan.jpeg';
 import programCintaRasulullah from '../assets/Program Cinta Rasulullah.jpeg';
 import tk from '../assets/tk.jpeg';
+import { getCmsItems, migrateCmsItems, saveCmsItem } from './cmsRepository';
 
 export interface ProgramItem {
   id: string;
@@ -669,29 +670,29 @@ export function getPrograms(): ProgramItem[] {
   return JSON.parse(localStorage.getItem(KEYS.PROGRAMS) || '[]');
 }
 
-export function getDonations(): DonationProgram[] {
+export function getDonations(): Promise<DonationProgram[]> {
   initializeDB();
-  return JSON.parse(localStorage.getItem(KEYS.DONATIONS) || '[]');
+  return getCmsItems('donations', initialDonations);
 }
 
-export function getClasses(): OnlineClass[] {
+export function getClasses(): Promise<OnlineClass[]> {
   initializeDB();
-  return JSON.parse(localStorage.getItem(KEYS.CLASSES) || '[]');
+  return getCmsItems('classes', initialClasses);
 }
 
-export function getNews(): NewsItem[] {
+export function getNews(): Promise<NewsItem[]> {
   initializeDB();
-  return JSON.parse(localStorage.getItem(KEYS.NEWS) || '[]');
+  return getCmsItems('news', initialNews);
 }
 
-export function getActivities(): ActivityItem[] {
+export function getActivities(): Promise<ActivityItem[]> {
   initializeDB();
-  return JSON.parse(localStorage.getItem(KEYS.ACTIVITIES) || '[]');
+  return getCmsItems('activities', initialActivities);
 }
 
 // Write helpers
 export function updateDonationProgress(id: string, amountToAdd: number): DonationProgram[] {
-  const donations = getDonations();
+  const donations = JSON.parse(localStorage.getItem(KEYS.DONATIONS) || '[]') as DonationProgram[];
   const index = donations.findIndex(d => d.id === id);
   if (index !== -1) {
     donations[index].collectedAmount += amountToAdd;
@@ -701,50 +702,34 @@ export function updateDonationProgress(id: string, amountToAdd: number): Donatio
   return donations;
 }
 
-export function saveDonation(program: DonationProgram): DonationProgram[] {
-  const donations = getDonations();
-  const index = donations.findIndex(d => d.id === program.id);
-  if (index !== -1) {
-    donations[index] = program;
-  } else {
-    donations.push(program);
-  }
-  localStorage.setItem(KEYS.DONATIONS, JSON.stringify(donations));
-  return donations;
+export async function saveDonation(program: DonationProgram): Promise<DonationProgram[]> {
+  await saveCmsItem('donations', program);
+  return getDonations();
 }
 
-export function saveNews(item: NewsItem): NewsItem[] {
-  const news = getNews();
-  const index = news.findIndex(n => n.id === item.id);
-  if (index !== -1) {
-    news[index] = item;
-  } else {
-    news.unshift(item); // Add new item to the top
-  }
-  localStorage.setItem(KEYS.NEWS, JSON.stringify(news));
-  return news;
+export async function saveNews(item: NewsItem): Promise<NewsItem[]> {
+  await saveCmsItem('news', item);
+  return getNews();
 }
 
-export function saveClass(item: OnlineClass): OnlineClass[] {
-  const classes = getClasses();
-  const index = classes.findIndex(c => c.id === item.id);
-  if (index !== -1) {
-    classes[index] = item;
-  } else {
-    classes.push(item);
-  }
-  localStorage.setItem(KEYS.CLASSES, JSON.stringify(classes));
-  return classes;
+export async function saveClass(item: OnlineClass): Promise<OnlineClass[]> {
+  await saveCmsItem('classes', item);
+  return getClasses();
 }
 
-export function saveActivity(item: ActivityItem): ActivityItem[] {
-  const activities = getActivities();
-  const index = activities.findIndex(a => a.id === item.id);
-  if (index !== -1) {
-    activities[index] = item;
-  } else {
-    activities.unshift(item);
-  }
-  localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify(activities));
-  return activities;
+export async function saveActivity(item: ActivityItem): Promise<ActivityItem[]> {
+  await saveCmsItem('activities', item);
+  return getActivities();
+}
+
+export async function migrateLocalCmsDataToSupabase(): Promise<void> {
+  const migrationKey = 'yayasan_cms_supabase_migration_v1';
+  if (localStorage.getItem(migrationKey) === 'done') return;
+
+  initializeDB();
+  await migrateCmsItems('donations', JSON.parse(localStorage.getItem(KEYS.DONATIONS) || '[]') as DonationProgram[]);
+  await migrateCmsItems('news', JSON.parse(localStorage.getItem(KEYS.NEWS) || '[]') as NewsItem[]);
+  await migrateCmsItems('classes', JSON.parse(localStorage.getItem(KEYS.CLASSES) || '[]') as OnlineClass[]);
+  await migrateCmsItems('activities', JSON.parse(localStorage.getItem(KEYS.ACTIVITIES) || '[]') as ActivityItem[]);
+  localStorage.setItem(migrationKey, 'done');
 }

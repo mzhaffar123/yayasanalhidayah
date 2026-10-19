@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Check, RefreshCw, Save } from 'lucide-react';
 import {
   getDonations,
-  saveDonation, saveNews, saveClass, saveActivity
+  saveDonation, saveNews, saveClass, saveActivity, migrateLocalCmsDataToSupabase
 } from '../data/mockData';
+import { uploadCmsImage } from '../data/cmsRepository';
 import tahsin from '../assets/tahsin.jpeg';
 import homepage from '../assets/homepage.jpeg';
 import kelasMinggu from '../assets/kelas minggu.jpeg';
@@ -26,7 +27,7 @@ interface ImageInputProps {
   onChange: (value: string) => void;
 }
 
-async function compressImage(file: File): Promise<string> {
+async function compressImage(file: File): Promise<Blob> {
   if (!file.type.startsWith('image/')) {
     throw new Error('Pilih file gambar yang valid.');
   }
@@ -54,7 +55,12 @@ async function compressImage(file: File): Promise<string> {
     context.fillStyle = '#fff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.82);
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Gambar gagal dikompres.'));
+      }, 'image/jpeg', 0.82);
+    });
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -69,7 +75,8 @@ function ImageInput({ label, value, onChange }: ImageInputProps) {
     if (!file) return;
 
     try {
-      onChange(await compressImage(file));
+      const compressedImage = await compressImage(file);
+      onChange(await uploadCmsImage(compressedImage, file.name));
       setError('');
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Gambar gagal diproses.');
@@ -114,6 +121,8 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
   const [activeTab, setActiveTab] = useState<'donasi' | 'berita' | 'kelas' | 'kegiatan'>('donasi');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [cmsError, setCmsError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Database States
   const [donations, setDonations] = useState<DonationProgram[]>([]);
@@ -145,7 +154,15 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
   }, []);
 
   const loadAllData = () => {
-    setDonations(getDonations());
+    setIsLoading(true);
+    setCmsError('');
+    void migrateLocalCmsDataToSupabase()
+      .then(() => getDonations())
+      .then(items => setDonations(items))
+      .catch((error: unknown) => {
+        setCmsError(error instanceof Error ? error.message : 'Gagal menyambungkan CMS ke Supabase.');
+      })
+      .finally(() => setIsLoading(false));
   };
 
   const triggerToast = (message: string) => {
@@ -169,7 +186,7 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
     setDonationNewTarget(program.targetAmount.toString());
   };
 
-  const handleSaveDonationEdit = (program: DonationProgram) => {
+  const handleSaveDonationEdit = async (program: DonationProgram) => {
     const add = donationAddAmount ? parseInt(donationAddAmount) : 0;
     const target = donationNewTarget ? parseInt(donationNewTarget) : program.targetAmount;
 
@@ -180,15 +197,20 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
       donorsCount: add > 0 ? program.donorsCount + 1 : program.donorsCount
     };
 
-    const result = saveDonation(updatedProgram);
-    setDonations(result);
-    setEditDonationId(null);
-    onRefreshData();
-    triggerToast(`Berhasil memperbarui program donasi: ${program.title}`);
+    try {
+      const result = await saveDonation(updatedProgram);
+      setDonations(result);
+      setEditDonationId(null);
+      onRefreshData();
+      triggerToast(`Berhasil memperbarui program donasi: ${program.title}`);
+      setCmsError('');
+    } catch (error: unknown) {
+      setCmsError(error instanceof Error ? error.message : 'Gagal menyimpan progres donasi.');
+    }
   };
 
   // 2. Manage Berita Handlers
-  const handleNewsSubmit = (e: React.FormEvent) => {
+  const handleNewsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newsForm.title.trim() || !newsForm.summary.trim() || !newsForm.content.trim()) {
       alert('Harap isi Judul, Ringkasan, dan Konten Berita.');
@@ -206,18 +228,22 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
       image: newsForm.image
     };
 
-    const result = saveNews(newItem);
-    setDonations(result as never);
-    setNewsForm({
-      title: '', category: 'berita', author: 'Admin Yayasan',
-      summary: '', content: '', image: homepage
-    });
-    onRefreshData();
-    triggerToast('Berhasil menambahkan Berita/Artikel baru!');
+    try {
+      await saveNews(newItem);
+      setNewsForm({
+        title: '', category: 'berita', author: 'Admin Yayasan',
+        summary: '', content: '', image: homepage
+      });
+      onRefreshData();
+      triggerToast('Berhasil menambahkan Berita/Artikel baru!');
+      setCmsError('');
+    } catch (error: unknown) {
+      setCmsError(error instanceof Error ? error.message : 'Gagal menyimpan berita.');
+    }
   };
 
   // 3. Manage Kelas Handlers
-  const handleClassSubmit = (e: React.FormEvent) => {
+  const handleClassSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!classForm.title.trim() || !classForm.instructor.trim() || !classForm.schedule.trim()) {
       alert('Harap isi Judul Kelas, Pengajar, dan Jadwal.');
@@ -239,19 +265,23 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
       image: classForm.image
     };
 
-    const result = saveClass(newItem);
-    setDonations(result as never);
-    setClassForm({
-      title: '', instructor: '', schedule: '', price: '0',
-      description: '', syllabusInput: '',
-      image: tahsin
-    });
-    onRefreshData();
-    triggerToast('Berhasil mendaftarkan Kelas Online baru!');
+    try {
+      await saveClass(newItem);
+      setClassForm({
+        title: '', instructor: '', schedule: '', price: '0',
+        description: '', syllabusInput: '',
+        image: tahsin
+      });
+      onRefreshData();
+      triggerToast('Berhasil mendaftarkan Kelas Online baru!');
+      setCmsError('');
+    } catch (error: unknown) {
+      setCmsError(error instanceof Error ? error.message : 'Gagal menyimpan kelas online.');
+    }
   };
 
   // 4. Manage Kegiatan Handlers
-  const handleActivitySubmit = (e: React.FormEvent) => {
+  const handleActivitySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activityForm.title.trim() || !activityForm.description.trim()) {
       alert('Harap isi Judul Kegiatan dan Deskripsi singkat.');
@@ -267,14 +297,18 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
       image: activityForm.image
     };
 
-    const result = saveActivity(newItem);
-    setDonations(result as never);
-    setActivityForm({
-      title: '', category: 'umum', date: new Date().toISOString().split('T')[0],
-      description: '', image: kelasMinggu
-    });
-    onRefreshData();
-    triggerToast('Berhasil mendokumentasikan kegiatan baru!');
+    try {
+      await saveActivity(newItem);
+      setActivityForm({
+        title: '', category: 'umum', date: new Date().toISOString().split('T')[0],
+        description: '', image: kelasMinggu
+      });
+      onRefreshData();
+      triggerToast('Berhasil mendokumentasikan kegiatan baru!');
+      setCmsError('');
+    } catch (error: unknown) {
+      setCmsError(error instanceof Error ? error.message : 'Gagal menyimpan kegiatan.');
+    }
   };
 
   return (
@@ -291,6 +325,12 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
             <Check size={18} /> {toastMessage}
           </div>
         )}
+        {cmsError && (
+          <div role="alert" style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>
+            {cmsError}
+          </div>
+        )}
+        {isLoading && <p role="status">Menghubungkan CMS ke Supabase dan menyinkronkan data...</p>}
 
         <div className="admin-dashboard">
           <div className="admin-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

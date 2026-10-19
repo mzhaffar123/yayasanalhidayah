@@ -1,8 +1,8 @@
 // src/pages/Home.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Heart, Calendar, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getPrograms, getDonations, getNews, getActivities } from '../data/mockData';
-import type { TestimonialItem } from '../data/mockData';
+import type { ActivityItem, DonationProgram, NewsItem, TestimonialItem } from '../data/mockData';
 import ProgramCard from '../components/ProgramCard';
 import DonationCard from '../components/DonationCard';
 import CountUp from '../components/CountUp';
@@ -19,12 +19,31 @@ interface HomeProps {
 export default function Home({ onNavigate, onSelectProgram, onSelectDonation, isLoading = true }: HomeProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'pendidikan' | 'keagamaan' | 'sosial'>('all');
   const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [allDonations, setAllDonations] = useState<DonationProgram[]>([]);
+  const [allNews, setAllNews] = useState<NewsItem[]>([]);
+  const [allActivities, setAllActivities] = useState<ActivityItem[]>([]);
+  const [cmsError, setCmsError] = useState('');
 
-  // Load latest data from localStorage
+  // Load public CMS content from Supabase.
   const allPrograms = getPrograms();
-  const allDonations = getDonations();
-  const allNews = getNews();
-  const allActivities = getActivities();
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([getDonations(), getNews(), getActivities()])
+      .then(([donations, news, activities]) => {
+        if (!isMounted) return;
+        setAllDonations(donations);
+        setAllNews(news);
+        setAllActivities(activities);
+        setCmsError('');
+      })
+      .catch((error: unknown) => {
+        if (isMounted) {
+          setCmsError(error instanceof Error ? error.message : 'Konten website gagal dimuat.');
+        }
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   // Filter and limit data
   const filteredPrograms = activeTab === 'all' 
@@ -90,6 +109,7 @@ export default function Home({ onNavigate, onSelectProgram, onSelectDonation, is
 
   return (
     <div className={`home-page ${!isLoading ? 'home-loaded' : ''}`}>
+      {cmsError && <div className="container" role="alert" style={{ paddingTop: '1rem', color: 'var(--color-danger)' }}>{cmsError}</div>}
       {/* 1. HERO SECTION */}
       <section className="hero-slider">
         <div className="hero-gradient-overlay"></div>

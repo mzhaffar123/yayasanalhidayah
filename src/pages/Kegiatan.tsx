@@ -1,51 +1,50 @@
 // src/pages/Kegiatan.tsx
-import { useState } from 'react';
-import { Calendar, Camera, Clock, MapPin, Tag } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Calendar, Camera, Tag, X } from 'lucide-react';
 import { getActivities } from '../data/mockData';
+import type { ActivityItem } from '../data/mockData';
 
 export default function Kegiatan() {
   const [filter, setFilter] = useState<'all' | 'tk' | 'tpa' | 'kajian' | 'umum'>('all');
-  const activities = getActivities();
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
+  const [cmsError, setCmsError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    getActivities()
+      .then(items => {
+        if (isMounted) setActivities(items);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) setCmsError(error instanceof Error ? error.message : 'Kegiatan gagal dimuat.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   const filteredActivities = filter === 'all' 
     ? activities 
     : activities.filter(a => a.category === filter);
 
-  // Mock Calendar Events for the current month
-  const agendaList = [
-    {
-      title: 'Kajian Parenting Islami: Mendidik Generasi Shalih',
-      date: 'Sabtu, 5 September 2026',
-      time: '09.00 - 11.30 WIB',
-      location: 'Aula Gedung TPA Yayasan',
-      speaker: 'Ustadzah Kiki Barkiah, M.Si',
-      badge: 'Kajian'
-    },
-    {
-      title: 'Munaqosyah Jilid Iqra Semester Ganjil',
-      date: 'Senin - Rabu, 14-16 September 2026',
-      time: '16.00 - 17.30 WIB',
-      location: 'Gedung TPA Al Hidayah',
-      speaker: 'Dewan Asatidzah TPA',
-      badge: 'TPA'
-    },
-    {
-      title: 'Pemberian Paket Santunan Yatim & Sembako Dhuafa',
-      date: 'Ahad, 20 September 2026',
-      time: '08.00 - selesai',
-      location: 'Halaman Utama Kantor Yayasan',
-      speaker: 'Panitia Bidang Sosial',
-      badge: 'Umum'
-    },
-    {
-      title: 'Outbound & Belajar Alam Santri TK Islam',
-      date: 'Kamis, 24 September 2026',
-      time: '08.00 - 12.00 WIB',
-      location: 'Taman Hutan Raya Juanda',
-      speaker: 'Guru-Guru TK Islam',
-      badge: 'TK'
-    }
-  ];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const agendaList = activities
+    .filter(activity => new Date(`${activity.date}T00:00:00`) >= today)
+    .sort((first, second) => first.date.localeCompare(second.date))
+    .slice(0, 4);
+
+  useEffect(() => {
+    if (!selectedActivity) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedActivity(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [selectedActivity]);
 
   return (
     <div className="kegiatan-page">
@@ -73,13 +72,13 @@ export default function Kegiatan() {
           </div>
 
           <div className="agenda-list" data-reveal-stagger>
-            {agendaList.map((agenda, index) => (
-              <div key={index} className="card agenda-card agenda-slide" data-reveal>
+            {agendaList.map(agenda => (
+              <div key={agenda.id} className="card agenda-card agenda-slide" data-reveal>
                 <div className="agenda-badge-col">
                   <span className="agenda-badge" style={{
-                    backgroundColor: agenda.badge === 'TPA' ? '#0d5c3a' : agenda.badge === 'TK' ? '#2563eb' : agenda.badge === 'Kajian' ? '#c5a85c' : '#64748b'
+                    backgroundColor: agenda.category === 'tpa' ? '#0d5c3a' : agenda.category === 'tk' ? '#2563eb' : agenda.category === 'kajian' ? '#c5a85c' : '#64748b'
                   }}>
-                    {agenda.badge}
+                    {agenda.category}
                   </span>
                 </div>
                 <div className="agenda-info-col">
@@ -87,21 +86,16 @@ export default function Kegiatan() {
                   <div className="agenda-meta-grid">
                     <div className="agenda-meta-item">
                       <Calendar size={14} className="meta-icon" />
-                      <span>{agenda.date}</span>
-                    </div>
-                    <div className="agenda-meta-item">
-                      <Clock size={14} className="meta-icon" />
-                      <span>{agenda.time}</span>
-                    </div>
-                    <div className="agenda-meta-item">
-                      <MapPin size={14} className="meta-icon" />
-                      <span>{agenda.location}</span>
+                      <span>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(new Date(`${agenda.date}T00:00:00`))}</span>
                     </div>
                   </div>
-                  <p className="agenda-speaker">Fasilitator/Pemateri: <span className="font-semibold text-primary">{agenda.speaker}</span></p>
+                  <p className="agenda-speaker">{agenda.description}</p>
                 </div>
               </div>
             ))}
+            {!isLoading && agendaList.length === 0 && (
+              <p>{cmsError || 'Belum ada agenda mendatang. Silakan cek kembali nanti.'}</p>
+            )}
           </div>
         </div>
       </section>
@@ -124,8 +118,17 @@ export default function Kegiatan() {
           </div>
 
           <div className="grid-responsive grid-responsive-2 grid-responsive-4 stagger-fade-in" data-reveal-stagger>
+            {cmsError && <p role="alert" style={{ color: 'var(--color-danger)' }}>{cmsError}</p>}
+            {isLoading && <p>Memuat kegiatan...</p>}
             {filteredActivities.map(activity => (
-              <div key={activity.id} className="card gallery-card gallery-zoom" data-reveal>
+              <button
+                key={activity.id}
+                type="button"
+                className="card gallery-card gallery-zoom"
+                data-reveal
+                onClick={() => setSelectedActivity(activity)}
+                aria-label={`Lihat detail kegiatan: ${activity.title}`}
+              >
                 <div className="gallery-img-wrapper">
                   <img src={activity.image} alt={activity.title} className="gallery-img" loading="lazy" />
                   <div className="gallery-hover-overlay">
@@ -140,11 +143,43 @@ export default function Kegiatan() {
                   <h4 className="gallery-title">{activity.title}</h4>
                   <p className="gallery-text">{activity.description}</p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
       </section>
+
+      {selectedActivity && (
+        <div className="activity-modal-backdrop" onClick={() => setSelectedActivity(null)}>
+          <section
+            className="activity-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="activity-modal-title"
+            onClick={event => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="activity-modal-close"
+              onClick={() => setSelectedActivity(null)}
+              aria-label="Tutup detail kegiatan"
+            >
+              <X size={22} />
+            </button>
+            <img src={selectedActivity.image} alt={selectedActivity.title} className="activity-modal-image" />
+            <div className="activity-modal-content">
+              <div className="gallery-date-flex">
+                <span className="act-cat-label"><Tag size={12} /> {selectedActivity.category}</span>
+                <span className="act-date-label">
+                  {new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(new Date(`${selectedActivity.date}T00:00:00`))}
+                </span>
+              </div>
+              <h2 id="activity-modal-title">{selectedActivity.title}</h2>
+              <p>{selectedActivity.description}</p>
+            </div>
+          </section>
+        </div>
+      )}
 
       <style>{`
         /* Agenda Layout */
@@ -228,6 +263,15 @@ export default function Kegiatan() {
         /* Gallery Card Styles */
         .gallery-card {
           background-color: white;
+          border: 0;
+          padding: 0;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          color: inherit;
+          font: inherit;
+          overflow: hidden;
+          border-radius: var(--radius-lg);
         }
         
         .gallery-img-wrapper {
@@ -306,6 +350,65 @@ export default function Kegiatan() {
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+
+        .activity-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1200;
+          display: grid;
+          place-items: center;
+          padding: 1rem;
+          background: rgba(10, 24, 18, 0.72);
+        }
+
+        .activity-modal {
+          position: relative;
+          width: min(100%, 680px);
+          max-height: min(90vh, 760px);
+          overflow-y: auto;
+          border-radius: var(--radius-lg);
+          background: white;
+          box-shadow: var(--shadow-lg);
+        }
+
+        .activity-modal-close {
+          position: absolute;
+          top: 0.75rem;
+          right: 0.75rem;
+          z-index: 1;
+          display: grid;
+          place-items: center;
+          width: 2.5rem;
+          height: 2.5rem;
+          border: 0;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.94);
+          color: var(--color-primary-dark);
+          cursor: pointer;
+        }
+
+        .activity-modal-image {
+          display: block;
+          width: 100%;
+          max-height: 420px;
+          object-fit: cover;
+        }
+
+        .activity-modal-content {
+          padding: clamp(1.25rem, 4vw, 2rem);
+        }
+
+        .activity-modal-content h2 {
+          margin: 0.75rem 0;
+          font-size: clamp(1.25rem, 4vw, 1.75rem);
+        }
+
+        .activity-modal-content > p {
+          margin: 0;
+          color: var(--color-text-muted);
+          line-height: 1.7;
+          white-space: pre-wrap;
         }
       `}</style>
     </div>
