@@ -97,7 +97,7 @@ export default function Footer({ setActivePage }: FooterProps) {
           <div className="footer-bottom-links">
             <span onClick={() => navigateTo('admin')} style={{ cursor: 'pointer', opacity: 0.7 }}>CMS Admin</span>
             <span>|</span>
-            <span onClick={() => navigateTo('tentang-kami')} style={{ cursor: 'pointer', opacity: 0.7 }}>Legalitas</span>
+            <span onClick={() => navigateTo('tentang-kami')} style={{ cursor: 'pointer', opacity: 0.7 }}>Tentang Kami</span>
           </div>
         </div>
       </div>

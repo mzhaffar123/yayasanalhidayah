@@ -18,6 +18,7 @@ import Topbar from './components/Topbar';
 import { initializeDB } from './data/mockData';
 import { useScrollReveal } from './hooks/useScrollReveal';
 import { Heart } from 'lucide-react';
+import { supabase } from './lib/supabase';
 
 export default function App() {
   const [activePage, setActivePage] = useState<string>('home');
@@ -28,7 +29,9 @@ export default function App() {
   // Detail item selectors
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedDonationId, setSelectedDonationId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => !!localStorage.getItem('adminAuth'));
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(Boolean(supabase));
+  const [authError, setAuthError] = useState('');
 
   // Global scroll-reveal animations
   useScrollReveal();
@@ -43,6 +46,44 @@ export default function App() {
     // Listen for hash change routing
     window.addEventListener('hashchange', handleRouting);
     return () => window.removeEventListener('hashchange', handleRouting);
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    let isMounted = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isMounted) {
+        setIsAdmin(Boolean(session));
+        setAuthError('');
+        setIsAuthLoading(false);
+      }
+    });
+
+    void supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (!isMounted) return;
+        if (error) {
+          setAuthError(`Gagal memeriksa sesi admin: ${error.message}`);
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(Boolean(data.session));
+        }
+        setIsAuthLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (!isMounted) return;
+        setAuthError(`Gagal memeriksa sesi admin: ${error instanceof Error ? error.message : 'Terjadi kesalahan jaringan.'}`);
+        setIsAdmin(false);
+        setIsAuthLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleRouting = () => {
@@ -100,13 +141,26 @@ export default function App() {
 
   const handleAdminLogin = () => {
     setIsAdmin(true);
+    setAuthError('');
     handleRouting();
   };
 
-  const handleAdminLogout = () => {
-    localStorage.removeItem('adminAuth');
-    setIsAdmin(false);
-    window.location.hash = 'home';
+  const handleAdminLogout = async () => {
+    if (!supabase) {
+      setAuthError('Konfigurasi Supabase tidak tersedia.');
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        setAuthError(`Gagal keluar dari akun admin: ${error.message}`);
+        return;
+      }
+      setIsAdmin(false);
+      window.location.hash = 'home';
+    } catch (error: unknown) {
+      setAuthError(`Gagal keluar dari akun admin: ${error instanceof Error ? error.message : 'Terjadi kesalahan jaringan.'}`);
+    }
   };
 
   // Render proper page view
@@ -157,10 +211,21 @@ export default function App() {
       case 'kontak':
         return <Kontak />;
       case 'admin':
-          return isAdmin ? (
-            <AdminCMS onRefreshData={refreshAppStates} onLogout={handleAdminLogout} />
-          ) : (
-            <AdminLogin onLogin={handleAdminLogin} />
+          return (
+            <>
+              {authError && (
+                <div role="alert" className="container" style={{ paddingTop: '1rem', color: 'var(--color-danger)' }}>
+                  {authError}
+                </div>
+              )}
+              {isAuthLoading ? (
+                <div className="container section-padding">Memeriksa sesi admin...</div>
+              ) : isAdmin ? (
+                <AdminCMS onRefreshData={refreshAppStates} onLogout={handleAdminLogout} />
+              ) : (
+                <AdminLogin onLogin={handleAdminLogin} />
+              )}
+            </>
           );
       default:
         return (

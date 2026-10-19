@@ -20,6 +20,96 @@ interface AdminCMSProps {
   onLogout?: () => void;
 }
 
+interface ImageInputProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+async function compressImage(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Pilih file gambar yang valid.');
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    throw new Error('Ukuran gambar maksimal 12 MB.');
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const loadedImage = new Image();
+      loadedImage.onload = () => resolve(loadedImage);
+      loadedImage.onerror = () => reject(new Error('Gambar tidak dapat dibuka.'));
+      loadedImage.src = objectUrl;
+    });
+    const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Browser tidak dapat memproses gambar ini.');
+    }
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function ImageInput({ label, value, onChange }: ImageInputProps) {
+  const [error, setError] = useState('');
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      onChange(await compressImage(file));
+      setError('');
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Gambar gagal diproses.');
+    }
+  };
+
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <input
+        type="text"
+        className="form-control"
+        placeholder="URL gambar (opsional)"
+        value={value.startsWith('data:image/') ? '' : value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <label className="btn btn-outline btn-sm" style={{ marginTop: '0.5rem', display: 'inline-flex', cursor: 'pointer' }}>
+        Pilih gambar dari galeri
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+      </label>
+      <small className="text-muted" style={{ display: 'block', marginTop: '0.35rem' }}>
+        Maksimal 12 MB; gambar akan diperkecil otomatis agar penyimpanan lebih ringan.
+      </small>
+      {error && <small style={{ display: 'block', color: 'var(--color-danger)', marginTop: '0.35rem' }}>{error}</small>}
+      {value && (
+        <img
+          src={value}
+          alt="Pratinjau gambar"
+          style={{ display: 'block', maxWidth: '180px', maxHeight: '120px', objectFit: 'cover', marginTop: '0.75rem', borderRadius: '8px' }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
   const [activeTab, setActiveTab] = useState<'donasi' | 'berita' | 'kelas' | 'kegiatan'>('donasi');
   const [showToast, setShowToast] = useState(false);
@@ -369,15 +459,11 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
                         onChange={(e) => setNewsForm({ ...newsForm, author: e.target.value })}
                       />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">URL Gambar Sampul (Unsplash/Lokal)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={newsForm.image}
-                        onChange={(e) => setNewsForm({ ...newsForm, image: e.target.value })}
-                      />
-                    </div>
+                    <ImageInput
+                      label="Gambar Sampul"
+                      value={newsForm.image}
+                      onChange={(image) => setNewsForm({ ...newsForm, image })}
+                    />
                     <div className="form-group grid-full-width">
                       <label className="form-label">Ringkasan Pendek (Summary)</label>
                       <input
@@ -459,13 +545,11 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
                         onChange={(e) => setClassForm({ ...classForm, price: e.target.value })}
                       />
                     </div>
-                    <div className="form-group grid-full-width">
-                      <label className="form-label">URL Gambar Visual</label>
-                      <input
-                        type="text"
-                        className="form-control"
+                    <div className="grid-full-width">
+                      <ImageInput
+                        label="Gambar Visual Kelas"
                         value={classForm.image}
-                        onChange={(e) => setClassForm({ ...classForm, image: e.target.value })}
+                        onChange={(image) => setClassForm({ ...classForm, image })}
                       />
                     </div>
                     <div className="form-group grid-full-width">
@@ -538,15 +622,11 @@ export default function AdminCMS({ onRefreshData, onLogout }: AdminCMSProps) {
                         onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
                       />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">URL Gambar Dokumentasi</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={activityForm.image}
-                        onChange={(e) => setActivityForm({ ...activityForm, image: e.target.value })}
-                      />
-                    </div>
+                    <ImageInput
+                      label="Gambar Dokumentasi"
+                      value={activityForm.image}
+                      onChange={(image) => setActivityForm({ ...activityForm, image })}
+                    />
                     <div className="form-group grid-full-width">
                       <label className="form-label">Deskripsi Singkat Dokumentasi</label>
                       <textarea

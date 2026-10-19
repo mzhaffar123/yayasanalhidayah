@@ -28,7 +28,7 @@
   --color-bg: #f8faf8;
   --color-bg-secondary: #f0f4f1;
   --color-bg-card: #ffffff;
-  --font-heading: Plus Jakarta Sans, Outfit, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Nunito Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
   --shadow-xs: 0 1px 3px rgba(20,45,34,0.04);
   --shadow-sm: 0 2px 8px rgba(20,45,34,0.05);

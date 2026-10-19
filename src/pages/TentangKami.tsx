@@ -1,7 +1,18 @@
 // src/pages/TentangKami.tsx
-import { Award, History, Shield, Users } from 'lucide-react';
+import { CalendarDays, Clock3, History, MapPin, Users } from 'lucide-react';
+import { getActivities, getPrograms } from '../data/mockData';
 
 export default function TentangKami() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcomingActivities = getActivities()
+    .filter(activity => new Date(`${activity.date}T00:00:00`) >= today)
+    .sort((first, second) => first.date.localeCompare(second.date))
+    .slice(0, 6);
+  const kajianPrograms = getPrograms().filter(program =>
+    program.category === 'keagamaan' && ['rel-mingguan', 'rel-ibu'].includes(program.id)
+  );
+
   const pengurus = [
     { role: 'Dewan Pembina', name: 'FAWAIDATU ZUHDAH', desc: 'Ulama & Akademisi' },
     { role: 'Ketua Yayasan', name: 'DRS. WIWIET PRIHATMADJI M.M', desc: 'Penanggung Jawab Program' },
@@ -23,7 +34,7 @@ export default function TentangKami() {
         <div className="banner-particle"></div>
         <div className="container banner-content text-center banner-slide">
           <h1>Tentang Yayasan Al Hidayah</h1>
-          <p>Mengenal lebih dekat visi, misi, legalitas, dan tim di balik pengabdian kami.</p>
+          <p>Mengenal lebih dekat visi, misi, program, dan tim di balik pengabdian kami.</p>
         </div>
       </section>
 
@@ -114,31 +125,63 @@ export default function TentangKami() {
         </div>
       </section>
 
-      {/* Legalitas Yayasan */}
+      {/* Kalender Kegiatan & Jadwal Kajian */}
       <section className="legalities section-padding bg-dark-green">
         <div className="container text-center">
-          <span className="section-subtitle text-gold" data-reveal><Shield size={14} /> Kepercayaan Publik</span>
-          <h2 className="section-title text-white" data-reveal>Legalitas & Izin Resmi</h2>
-          <p className="legal-intro" data-reveal>Untuk kenyamanan dan membangun kepercayaan para donatur, berikut adalah izin serta legalitas formal yang diakui negara:</p>
-          
-          <div className="legal-badges-grid" data-reveal-stagger>
-            <div className="legal-badge-card glow-hover" data-reveal>
-              <Award className="legal-card-icon icon-bounce" size={32} />
-              <h4>Akte Notaris Pendirian</h4>
-              <p className="legal-no">No. 24 Tanggal 15 Mei 2016</p>
-              <span className="legal-issuer">Notaris Syarifah, SH., M.Kn.</span>
+          <span className="section-subtitle text-gold" data-reveal><CalendarDays size={14} /> Agenda Yayasan</span>
+          <h2 className="section-title text-white" data-reveal>Kalender Kegiatan & Jadwal Kajian</h2>
+          <p className="legal-intro" data-reveal>Temukan agenda kegiatan mendatang dan jadwal kajian rutin Yayasan Al Hidayah.</p>
+
+          <div className="agenda-grid" data-reveal-stagger>
+            <div className="agenda-panel" data-reveal>
+              <h3><CalendarDays size={20} /> Kegiatan Mendatang</h3>
+              {upcomingActivities.length > 0 ? (
+                <div className="agenda-list">
+                  {upcomingActivities.map(activity => (
+                    <article className="agenda-item" key={activity.id}>
+                      <time className="agenda-date" dateTime={activity.date}>
+                        {new Intl.DateTimeFormat('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        }).format(new Date(`${activity.date}T00:00:00`))}
+                      </time>
+                      <div>
+                        <h4>{activity.title}</h4>
+                        <p>{activity.description}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="agenda-empty">Belum ada agenda mendatang. Informasi kegiatan terbaru akan ditampilkan di sini.</p>
+              )}
             </div>
-            <div className="legal-badge-card glow-hover" data-reveal>
-              <Award className="legal-card-icon icon-bounce" size={32} />
-              <h4>SK Kemenkumham RI</h4>
-              <p className="legal-no">No. AHU-0012345.AH.01.04.Tahun 2016</p>
-              <span className="legal-issuer">Kementerian Hukum dan HAM RI</span>
-            </div>
-            <div className="legal-badge-card glow-hover" data-reveal>
-              <Award className="legal-card-icon icon-bounce" size={32} />
-              <h4>Izin Operasional Kemenag</h4>
-              <p className="legal-no">No. Kd.10.04/5/PP.00.7/4321/2019</p>
-              <span className="legal-issuer">Kantor Kementerian Agama Kota</span>
+
+            <div className="agenda-panel" data-reveal>
+              <h3><Clock3 size={20} /> Jadwal Kajian Rutin</h3>
+              <div className="agenda-list">
+                {kajianPrograms.map(program => (
+                  <article className="agenda-item kajian-item" key={program.id}>
+                    <div className="kajian-day">
+                      {program.id === 'rel-mingguan' ? 'Ahad' : 'Rabu'}
+                    </div>
+                    <div>
+                      <h4>{program.title}</h4>
+                      <p className="kajian-time">
+                        <Clock3 size={14} />
+                        {program.id === 'rel-mingguan'
+                          ? '07.00–08.30 WIB'
+                          : 'Sore hari — konfirmasi waktu kepada panitia'}
+                      </p>
+                      {program.id === 'rel-mingguan' && (
+                        <p className="kajian-location"><MapPin size={14} /> Masjid Al Hidayah</p>
+                      )}
+                      <p>{program.description}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -330,7 +373,7 @@ export default function TentangKami() {
           margin: 0;
         }
         
-        /* Legalities section */
+        /* Shared dark section and agenda styles */
         .bg-dark-green {
           background-color: var(--color-primary-dark);
           color: rgba(255,255,255,0.8);
@@ -348,58 +391,108 @@ export default function TentangKami() {
           max-width: 600px;
           margin-right: auto;
           margin-left: auto;
-          margin-bottom: 3rem;
+          margin-bottom: 2.5rem;
         }
         
-        .legal-badges-grid {
+        .agenda-grid {
           display: grid;
           grid-template-columns: 1fr;
-          gap: 2rem;
+          gap: 1.25rem;
+          text-align: left;
         }
         
         @media (min-width: 768px) {
-          .legal-badges-grid {
-            grid-template-columns: repeat(3, 1fr);
+          .agenda-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
         
-        .legal-badge-card {
-          background-color: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 2rem;
+        .agenda-panel {
+          min-width: 0;
+          padding: 1.5rem;
           border-radius: var(--radius-lg);
+          background-color: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .agenda-panel > h3 {
           display: flex;
-          flex-direction: column;
           align-items: center;
-          text-align: center;
-          transition: background-color var(--transition-fast);
-        }
-        
-        .legal-badge-card:hover {
-          background-color: rgba(255, 255, 255, 0.08);
-        }
-        
-        .legal-card-icon {
-          color: var(--color-secondary);
-          margin-bottom: 1.25rem;
-        }
-        
-        .legal-badge-card h4 {
+          gap: 0.65rem;
+          margin-bottom: 1rem;
           color: white;
           font-size: 1.1rem;
-          margin-bottom: 0.5rem;
         }
         
-        .legal-no {
-          font-size: 0.9rem;
-          font-weight: 700;
+        .agenda-panel > h3 svg,
+        .agenda-date,
+        .kajian-day {
           color: var(--color-secondary);
-          margin-bottom: 0.25rem;
         }
         
-        .legal-issuer {
-          font-size: 0.75rem;
-          color: rgba(255,255,255,0.5);
+        .agenda-list {
+          display: grid;
+          gap: 0.85rem;
+        }
+        
+        .agenda-item {
+          display: grid;
+          grid-template-columns: 5.5rem minmax(0, 1fr);
+          gap: 0.85rem;
+          padding: 1rem 0;
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        
+        .agenda-date,
+        .kajian-day {
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
+
+        .kajian-day {
+          color: var(--color-secondary);
+          font-size: 1rem;
+        }
+
+        .agenda-item h4 {
+          margin: 0 0 0.35rem;
+          color: white;
+          font-size: 0.95rem;
+        }
+
+        .agenda-item p {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.68);
+          font-size: 0.85rem;
+          line-height: 1.55;
+        }
+
+        .agenda-item .kajian-time,
+        .agenda-item .kajian-location {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          margin-bottom: 0.3rem;
+          color: var(--color-secondary-light);
+        }
+
+        .agenda-empty {
+          margin: 0;
+          padding: 1rem 0;
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.68);
+          font-size: 0.9rem;
+        }
+
+        @media (max-width: 480px) {
+          .agenda-panel {
+            padding: 1rem;
+          }
+
+          .agenda-item {
+            grid-template-columns: 4.5rem minmax(0, 1fr);
+            gap: 0.6rem;
+          }
         }
       `}</style>
     </div>
